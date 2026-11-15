@@ -1,262 +1,221 @@
-                                               ██╗    ██████╗  ███████╗██████╗
+<p align="center">
+                                              ██╗    ██████╗  ███████╗██████╗
                                                ██║    ╚════██╗ ██╔════╝╚════██╗
                                                ██║     █████╔╝ █████╗  █████╔╝
                                                ██║     ██╔═══╝ ██╔══╝ ██╔═══╝
                                                ███████╗███████╗██║    ███████╗
+  <br>
+  Visualise en temps réel la reconstruction d'une série temporelle sous-quantifiée à 1 bit
+</p>
 
- 
+<p align="center">
+  <img src="https://img.shields.io/badge/Julia-1.10.11-9558B2?logo=julia&logoColor=white" alt="Julia">
+  <img src="https://img.shields.io/badge/OpenGL-3.3%2B-green" alt="OpenGL">
+  <img src="https://img.shields.io/badge/plateforme-Windows%20%7C%20Linux-lightgrey" alt="Plateformes">
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Licence">
+</p>
 
-                                                # Projet L2F2 - Déquantification
-                                                      Version 1.0, 2026
-                                            Ce fichier README a été généré le [01-03-2026]
-                                                Dernière mise à jour le : [20-04-2026].
+<p align="center">
+  <a href="#démarrage-rapide">Démarrage rapide</a> ·
+  <a href="#guide-utilisateur">Guide utilisateur</a> ·
+  <a href="#guide-technique">Guide technique</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="#dépannage">Dépannage</a>
+</p>
 
-# DESCRIPTION
+---
 
-Cette application implémente un algorithme de déquantification à 1 bit sur des séries temporelles.
+*Version 1.0, 2026 — README généré le 01-03-2026, dernière mise à jour le 20-04-2026.*
 
-La sous-quantification à 1 bit supprime le bit de poids faible de chaque valeur d'une série `x`.
-Elle produit donc `xQ` où chaque valeur est le nombre pair inférieur ou égal.
-Cette opération
-est irréversible : pour chaque `xQ[n]`, la valeur originale `x[n]` vaut soit `xQ[n]` soit
-`xQ[n] + 1`.
+L2F2 est une application de **déquantification** de séries temporelles, écrite en Julia. La sous-quantification à 1 bit supprime le bit de poids faible de chaque valeur d'une série `x` et produit `xQ` : chaque valeur devient le nombre pair inférieur ou égal. Cette opération est irréversible, mais pour chaque `xQ[n]`, la valeur d'origine `x[n]` vaut soit `xQ[n]`, soit `xQ[n] + 1`.
 
-L'application exploite l'histogramme `P` des couples de valeurs successives de `x`.
-Elle construit un arbre binaire représentant toutes les séries possibles compatibles avec cet histogramme et `xQ`, puis
-l'élague progressivement en éliminant les branches incompatibles avec `P`.
-Les séries restantes à la fin de l'élagage sont donc toutes les solutions possibles, parmi lesquelles figure nécessairement
-la série originale `x`.
+L'application exploite l'histogramme `P` des couples de valeurs successives de `x` pour construire un arbre binaire de toutes les séries possibles, puis l'élague en supprimant les branches incompatibles avec `P`. Les séries restantes sont les solutions, et la série originale `x` en fait nécessairement partie.
 
-L'interface graphique permet de visualiser en temps réel la construction et l'élagage de cet arbre,
-d'interagir avec l'animation via les boutons de contrôle, et d'exporter les solutions trouvées.
+> C'est une application de **recherche** : elle ne cherche pas uniquement la série originale, mais **toutes** les séries compatibles avec l'histogramme.
 
-Cette application est une application de recherche qui ne tente pas de trouver exclusivement la série originale mais toutes les séries compatibles avec l'histogramme.
+## Comment ça marche
 
+```mermaid
+graph LR
+    A[x : série originale] -->|construction.jl| B[xQ + histogramme P]
+    B -->|dequantification.jl| C[Arbre binaire]
+    C -->|élagage avec P| D[Solutions .dat]
+    E[interface.jl] -->|callbacks| C
+    E -->|import / export| A
+```
 
+### Petit exemple
 
-# PREREQUIS
+Soit `x = [3, 4, 7]`. On obtient `xQ = [2, 4, 6]` et `P = {(3,4): 1, (4,7): 1}`.
 
-Avant de lancer l'application, assurez-vous d'avoir:
+| Niveau | Valeurs possibles | Couples testés dans P | Résultat |
+| ------ | ----------------- | --------------------- | -------- |
+| 1      | 2 ou 3            | —                     | deux branches |
+| 2      | 4 ou 5            | (2,4) ✗ (2,5) ✗ (3,4) ✓ (3,5) ✗ | la branche `2` est élaguée |
+| 3      | 6 ou 7            | (4,6) ✗ (4,7) ✓       | une seule solution : `[3, 4, 7]` |
 
-- la version 1.10.11 de Julia disponible sur https://julialang.org/downloads/.
-  Si vous voulez avoir une version plus récente, assurez vous qu'elle soit compatible avec la bibliothèque graphique GLMakie
-- une carte graphique compatible avec OpenGL 3.3+
-- de préférence un système d'exploitation récent (Windows 10/11, ou Linux)
-- 4 Go minimum (on recommande 8 Go)
+### Fonctionnement de l'algorithme
 
+- L'arbre est parcouru **en profondeur**.
+- Pour chaque nœud, on génère les deux fils possibles (valeur paire et impaire) et on vérifie que le couple formé est encore disponible dans l'histogramme (compteur > 0).
+- Si le couple est compatible, le fils copie l'histogramme de son père et décrémente le compteur du couple.
+- Sinon, la branche est élaguée : elle est marquée en rouge, et on remonte récursivement tant que le parent n'a plus de fils vivant.
+- Quand un nœud atteint le dernier niveau de `xQ`, la branche est extraite et sauvegardée comme solution.
 
+L'histogramme est un dictionnaire qui ne stocke que les couples existants (une matrice serait vide à plus de 95 % sur les grandes séries).
 
-# INSTALLATION
+## Plateformes supportées
 
-Le lancement de l'application dépend ensuite de votre système d'exploitation.
+| OS      | Statut | Notes |
+| ------- | :----: | ----- |
+| Linux   |   ✅   | Cible principale. |
+| Windows |   ✅   | Windows 10/11. Certains antivirus bloquent les DLL de Julia, voir [Dépannage](#dépannage). |
+| macOS   |   ⚠️   | Les scripts `.sh` fonctionnent en principe, mais le projet n'a pas été testé dessus. |
 
-- Si vous êtes un utilisateur sous Windows
-  Vous pouvez dans un premier temps double-cliquer directement sur le fichier "install.bat" (qui installera les dépendances) et ensuite run.bat(qui lancera l'application).
-  Notez que si vous installez les dépendances une fois, il ne sera pas nécessaire de le refaire au prochain lancement de l'application.
+### Prérequis
 
-Vous pouvez aussi l'exécuter depuis le terminal. Pour ce faire, placez-vous dans le dossier du projet avec la commande:
+| Élément | Version |
+| ------- | ------- |
+| Julia | **1.10.11** ([téléchargement](https://julialang.org/downloads/)). Une version plus récente est possible si elle est compatible avec GLMakie. |
+| Carte graphique | Compatible OpenGL 3.3+ |
+| Mémoire | 4 Go minimum (8 Go recommandés) |
+
+## Fonctionnalités
+
+| Catégorie | Description |
+| --------- | ----------- |
+| **Préparation des données** | Génère `xQ` et `P` à partir de ta série `x`, et permet de les télécharger |
+| **Déquantification** | Construit et élague l'arbre binaire, produit toutes les solutions en fichiers binaires 16 bits |
+| **Visualisation** | Arbre animé en temps réel, branches vivantes en bleu, élaguées en rouge, compteur de branches restantes |
+| **Contrôle** | Boutons Lancer, Arrêter et Effacer |
+| **Import / Export** | Import de `x` ou d'un dossier `xQ` + `P`, export des solutions en archive ZIP |
+
+## Démarrage rapide
+
+### Installation
+
+**Windows** : double-clique sur `install.bat` (installe les dépendances), puis sur `run.bat` (lance l'application). Ou depuis un terminal :
+
+```bat
 cd cheminVersLeProjet
-puis saisissez
-'install.bat'
-et ensuite,
-'run.bat'
+install.bat
+run.bat
+```
 
-Il est possible que le Contrôle Intelligent des Applications bloque les fichiers exécutables (notamment install.bat et run.bat).
-Dans ce cas, veuillez faire un clique-droit sur le fichier concerné et ouvrez "Propriétés".
-Rendez vous ensuite dans l'onglet Généralité, section Sécurité puis, cochez la case "Débloquer".
+**Linux / macOS** :
 
-Si vous rencontrez une erreur de type `LOAD ERROR: error opening package file <chemin>.dll`,
-désactivez votre antivirus le temps de l'installation et de l'utilisation de l'application.
-Certains antivirus (notamment McAfee) bloquent le chargement des bibliothèques de Julia.
+```bash
+cd cheminVersLeProjet
+chmod +x install.sh run.sh
+./install.sh
+./run.sh
+```
 
-Si le problème persiste:
-- vous pouvez utiliser une machine virtuelle (VirtualBox par exemple)
-- utiliser WSL (Windows Subsystem for Linux)
+Les dépendances ne s'installent qu'une fois. L'installation et le premier lancement peuvent être longs (compilation de GLMakie), merci de patienter.
 
+## Guide utilisateur
 
+| Bouton | Action |
+| ------ | ------ |
+| **Importer x** | Sélectionne une série temporelle au format binaire 16 bits. `xQ` et `P` sont générés automatiquement. |
+| **Lancer** | Démarre la construction et l'élagage de l'arbre. |
+| **Arrêter** | Stoppe l'animation. Un nouveau clic sur **Lancer** redémarre depuis le début. |
+| **Importer xQ et P** | Charge un dossier contenant `xQ` et `P` à la place de `x` (disponible après un premier lancement). |
+| **Effacer** | Réinitialise l'interface graphique. |
+| **Exporter les solutions** | Télécharge toutes les solutions en archive ZIP. |
+| **Télécharger xQ et P** | Récupère dans un dossier le `xQ` et le `P` générés. |
 
-- Si vous êtes un utilisateur sous une distribution Linux ou sous MacOs
-  Vous ouvrez un terminal et y saisissez:
-  cd cheminVersLeProjet
-  Par défaut vous ne pouvez pas exécuter des scripts.
-  Saisissez donc 'chmod +x install.sh' suivi de 'chmod +x run.sh'
-  Saisissez ensuite './install.sh' pour installer les dépendances puis './run.sh' pour lancer l'application.
-  Notez que si vous installez les dépendances une fois, il ne sera pas nécessaire de le refaire au prochain lancement de l'application.
+Le fichier importé doit être non vide et contenir plus de deux valeurs, sinon un message d'erreur s'affiche à la place de l'arbre.
 
-L'installation des dépendances et le lancement de l'application peuvent prendre du temps au départ. Veuillez patienter.
+### Limites connues
 
+- **Passage à l'échelle** : sur de grandes séries, l'arbre peut mettre très longtemps à se développer (un fichier de 100 valeurs structurées peut ne donner aucune solution en 1h30, alors qu'un fichier aléatoire de même taille se termine en quelques secondes). Le détail est dans le rapport.
+- Les boutons d'avance et de recul dans l'animation ne sont pas implémentés.
 
+## Guide technique
 
-
-# FONCTIONNALITES
-
-Cette application vous propose trois grandes fonctionnalités.
-
-Elle permet premièrement de générer et de récupérer sous la forme d'un dossier l'histogramme du jeu de données que vous aurez soumis ainsi que sa version sous-quantifiée.
-
-Elle permet aussi de récupérer les solutions trouvées sous la forme de fichiers binaires codés sur 16 bits en élaguant un arbre binaire représentant toutes les reconstructions possibles du jeu de données initial.
-
-Enfin, l'interface graphique permet de visualiser la construction et l'élagage de cet arbre ainsi que le nombre de branches restantes.
-Les branches élaguées sont représentées en rouges et les branches encore vivantes en bleues.
-
-Des boutons sont aussi mis à disposition pour pouvoir interagir avec l'animation.
-
-
-
-
-# GUIDE UTILISATEUR:
-
-Au lancement de l'application, cliquez sur le bouton **Importer x** et sélectionnez votre série temporelle au format binaire 16 bits depuis votre système de fichiers.
-Vous pourrez ensuite lancer l'application en cliquant sur le bouton **lancer**.
-Vous avez la possibilité d'appuyer sur le bouton **arrêter** après lancement pour stopper l'animation.
-Notez cependant que si par la suite vous cliquez à nouveau sur **lancer**, l'animation redémarrera depuis le début.
-
-Si vous le souhaitez, vous pourrez (seulement après un premier lancement de l'animation) importer un dossier contenant xQ et P (en cliquant sur **importer xQ et P**) et lancer l'animation en cliquant sur **lancer** avec ces données.
-
-Tous les résultats seront affichés dans la liste des résultats.
-Vous avez la possibilité de tous les récupérer au format Zip en cliquant sur **exporter les solutions**.
-Vous pouvez aussi télécharger un dossier contenant xQ et P générés grâce à l'algorithme en cliquant sur **télécharger xQ et P**.
-
-Si vous voulez réinitialiser l'interface graphique, appuyez sur **effacer**.
-
-Notez qu'il est nécessaire d'importer des fichiers non vides et contenant suffisamment de données, soit plus de deux.
-
-
-
-
-# GUIDE TECHNIQUE
-
-Le projet est organisé comme suit:
-
+```
 .
 ├── LICENSE.txt
 ├── Manifest.toml
 ├── Project.toml
 ├── README.md
-├── docs              //dossier de documentation
-│   ├── Manifest.toml
-│   ├── Project.toml
-│   ├── build
-│   │   ├── arbre.jl.html
-│   │   ├── assets
-│   │   ├── construction.jl.html
-│   │   ├── dequantification.jl.html
-│   │   ├── index.html                       //vous pouvez accéder à la documentation en cliquant sur ce fichier
-│   │   ├── interface.jl.html
-│   ├── make.jl
-│   └── src
-│       ├── arbre.jl.md  //module implémentant les structures d'arbre, de nœud et des fonctions associées 
-│       ├── assets     //Vous pouvez directement accéder aux différents documents qui composent la documentation dans ce dossier
-│       │   ├── [L2F2]Cahier_conception_generale_detaillee_v1.0.pdf
-│       │   ├── [L2F2]Cahier_de_recette_v1.0.pdf
-│       │   ├── [L2F2]Cahier_des_charges_v1.0.pdf
-│       │   ├── [L2F2]Plan_de_test.pdf
-│       │   └── [L2F2]Rapport.pdf
-│       ├── construction.jl.md     //programme auxiliaire
-│       ├── dequantification.jl.md  //programme principal
-│       ├── index.md
-│       └── interface.jl.md    //module implémentant l'interface graphique
-├── install.bat  //script d'installation pour Windows
-├── install.sh   //script d'installation pour Linux
-├── run.bat      //script de lancement pour Windows
-├── run.sh       //script de lancement pour Linux
+├── docs                 # documentation (Documenter.jl)
+│   ├── make.jl
+│   ├── build/index.html # point d'entrée de la documentation
+│   └── src
+├── install.bat / install.sh   # installation des dépendances
+├── run.bat / run.sh           # lancement de l'application
 ├── src
-│   ├── L2F2_Dequantification_App.jl
-│   ├── algorithme
-│   │   ├── arbre.jl
-│   │   ├── construction.jl
-│   │   └── dequantification.jl
-│   ├── data  //dossier d'enregistrement de xQ et P générés par l'algorithme
-│   │   ├── temp
-│   └── interface.jl
-└── test                         //dossier contenant des fichiers tests
-    ├── data
-    │   ├── input
-    │   │   ├── P.ppm
-    │   │   ├── x10.dat
-    │   │   ├── x100.dat
-    │   │   ├── x19.dat
-    │   │   ├── x200.dat
-    │   │   ├── x47.dat
-    │   │   ├── x500.dat
-    │   │   ├── x999.dat
-    │   │   ├── x9999.dat
-    │   │   ├── x99994.dat
-    │   │   ├── x_AR1_940.dat
-    │   │   ├── x_AR1_9980.dat
-    │   │   └── x_AR1_99882.dat
-    │   └── temp
+│   ├── L2F2_Dequantification_App.jl   # point d'entrée
+│   ├── interface.jl                   # interface graphique
+│   ├── algorithme
+│   │   ├── arbre.jl                   # structures Noeud et Arbre
+│   │   ├── construction.jl            # programme auxiliaire : x -> xQ et P
+│   │   └── dequantification.jl        # programme principal : construction et élagage
+│   └── data                           # xQ et P générés, dossier temp des solutions
+└── test
     ├── runtests.jl
     ├── test_arbre.jl
     ├── test_construction.jl
-    └── test_dequantification.jl
+    ├── test_dequantification.jl
+    └── data/input                     # jeux de données de test
+```
 
+### Modules
 
-
+| Fichier | Rôle |
+| ------- | ---- |
+| `arbre.jl` | Structures `Noeud` et `Arbre`, fonctions associées |
+| `construction.jl` | Lit `x`, génère `xQ` et `P`, sauvegarde les données |
+| `dequantification.jl` | Reçoit `xQ` et `P`, construit et élague l'arbre, génère les solutions |
+| `interface.jl` | Interface graphique, appelle les modules précédents via des fonctions de callback |
 
 ### Dépendances
 
-L'application repose sur quatre bibliothèques externes, toutes installées automatiquement par les scripts de lancement.
+Toutes sont installées automatiquement par `install.bat` / `install.sh`.
 
-GLMakie est la bibliothèque graphique principale. Elle s'appuie sur OpenGL pour le rendu et fournit les éléments d'interface tels que les boutons par exemple.
-Une carte graphique compatible OpenGL 3.3 est donc fortement conseillée.
+| Bibliothèque | Utilité |
+| ------------ | ------- |
+| GLMakie | Bibliothèque graphique principale (OpenGL), boutons et rendu |
+| GraphMakie | Affichage et mise à jour de l'arbre |
+| Graphs | Structure de graphe (`SimpleDiGraph`) utilisée pour dessiner l'arbre |
+| NativeFileDialog | Sélecteur de fichiers natif du système |
+| ZipFile | Archive ZIP des solutions |
 
-GraphMakie permet la visualisation des graphes. Elle est utilisée pour afficher et mettre à jour l'arbre binaire pendant l'animation.
+### Tests
 
-NativeFileDialog ouvre le sélecteur de fichiers natif du système d'exploitation.
+Chaque module a son fichier de test, tous orchestrés par `test/runtests.jl`. Pour les lancer depuis la racine :
 
-ZipFile permet de regrouper les séries candidates dans une archive ZIP.
+```bash
+julia --project -e 'using Pkg; Pkg.test()'
+```
 
+## Dépannage
 
+| Problème | Solution |
+| -------- | -------- |
+| Windows bloque `install.bat` ou `run.bat` (Contrôle Intelligent des Applications) | Clic droit sur le fichier, **Propriétés**, onglet **Général**, section **Sécurité**, coche **Débloquer**. |
+| `LOAD ERROR: error opening package file <chemin>.dll` | Certains antivirus (notamment McAfee) bloquent les bibliothèques de Julia. Désactive-le le temps de l'installation et de l'utilisation. |
+| Le problème persiste | Utilise une machine virtuelle (VirtualBox) ou WSL (Windows Subsystem for Linux). |
+| Le premier lancement est très lent | Normal : GLMakie est compilé au premier lancement. |
 
+## Documentation
 
-### Fonctionnement de l'algorithme
+La documentation complète est dans `docs/build` : ouvre `index.html`. Les documents du projet sont téléchargeables depuis la section « Téléchargement des documents ».
 
-L'algorithme repose sur une propriété simple :
-pour chaque valeur sous-quantifiée "xQ\[n]", la valeur originale "x\[n]" est soit "xQ\[n]" (valeur paire), soit "xQ\[n] + 1" (valeur impaire).
-L'ensemble de toutes les reconstructions possibles est donc représentable sous la forme d'un arbre binaire.
+| Document | Description |
+| -------- | ----------- |
+| Cahier des charges | Besoins et contraintes |
+| Cahier de recette | Tests de conformité de l'application |
+| Cahier de conception générale et détaillée | Architecture, structures de données, détail de chaque fonction |
+| Plan de test | Tests unitaires et d'intégration |
+| Rapport | Choix de l'équipe, difficultés rencontrées, bilan et perspectives |
 
-L'algorithme utilise l'histogramme des couples de x, la série originale.
+## Auteurs
 
-Cet histogramme, implémenté sous la forme d'un dictionnaire, révèle les couples qui existent et plus précisément leur occurrence dans la série de base.
+Développé par Abdallah BENALI, Dina KANGNI, Mohammed ZOUAD et Salim ACHAK, sous la direction de Gaël MAHÉ et de David JANISZEK, dans le cadre de l'UE Projet Professionnel à l'université Paris Cité.
 
-Il ne donne pas leur ordre d'apparition, qui pourra être identifié avec l'arbre binaire.
+## Licence
 
-- l'algorithme parcourt l'arbre en profondeur.
-- pour chaque nœud:
-- il génère les deux fils possibles et vérifie si le couple formé est compatible avec l'histogramme
-- si le couple est compatible: les fils copient l'histogramme de leur père et décrémentent l'occurrence du nouveau couple formé.
-  On répète ces opérations récursivement sur les fils.
-- sinon on élague le père récursivement.
-
-
-
-
-# DOCUMENTATION
-
-L'intégralité de la documentation est disponible en local dans le dossier docs/build.
-Vous pouvez y accéder à partir de la page d'accueil en cliquant sur le fichier index.html.
-Si vous voulez consulter ou télécharger le cahier des charges, le cahier de recette, le plan de test et le cahier de conception générale et détaillée, rendez vous sur la page d'accueil, section "Téléchargement des documents" ou utilisez la barre de recherche.
-
-
-
-
-# AUTEURS
-
-Développé par Abdallah BENALI, Dina KANGNI, Mohammed ZOUAD et Salim Achak.
-
-Sous la direction de Gaël MAHE et de David JANISZEK.
-Dans le cadre de l'UE Projet Professionnel à l'université Paris Cité.
-
-
-
-
-# LICENSE
-
-Ce projet est distribué sous licence Apache 2.0.
-
-Toute réutilisation ou redistribution commerciale doit mentionner explicitement les auteurs.
-
-Pour plus d'informations, vous pouvez vous référer à la documentation du projet.
-
---
+Ce projet est distribué sous [licence Apache 2.0](LICENSE.txt). Toute réutilisation ou redistribution commerciale doit mentionner explicitement les auteurs.
