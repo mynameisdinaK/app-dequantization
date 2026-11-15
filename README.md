@@ -1,12 +1,16 @@
-<p align="center">
-                                              ██╗    ██████╗  ███████╗██████╗
-                                               ██║    ╚════██╗ ██╔════╝╚════██╗
-                                               ██║     █████╔╝ █████╗  █████╔╝
-                                               ██║     ██╔═══╝ ██╔══╝ ██╔═══╝
-                                               ███████╗███████╗██║    ███████╗
-  <br>
-  Visualise en temps réel la reconstruction d'une série temporelle sous-quantifiée à 1 bit
-</p>
+<div align="center">
+
+<pre>
+██╗    ██████╗  ███████╗██████╗
+██║    ╚════██╗ ██╔════╝╚════██╗
+██║     █████╔╝ █████╗  █████╔╝
+██║     ██╔═══╝ ██╔══╝ ██╔═══╝
+███████╗███████╗██║    ███████╗
+</pre>
+
+**Visualise en temps réel la reconstruction d'une série temporelle sous-quantifiée à 1 bit**
+
+</div>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Julia-1.10.11-9558B2?logo=julia&logoColor=white" alt="Julia">
